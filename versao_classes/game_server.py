@@ -7,30 +7,18 @@ from player import Player
 # ==========================================
 # CLASSE GAME SERVER
 # ==========================================
-# Esta classe representa o servidor principal
-# do jogo multiplayer.
+# Responsável pelo servidor multiplayer.
 #
-# Responsabilidades:
-# - Criar e iniciar o servidor TCP
-# - Aceitar conexões de clientes
-# - Criar jogadores
-# - Receber comandos
-# - Processar movimentação
-# - Validar colisões
-# - Sincronizar posições
-# - Avisar entrada e saída de jogadores
+# Agora ele processa:
+# - Movimento
+# - Entrada e saída de jogadores
+# - Chat
+# - Colisões
+# - Sincronização
 # ==========================================
 
 
 class GameServer:
-
-    # ======================================
-    # CONSTRUTOR
-    # ======================================
-    # Define as configurações iniciais do
-    # servidor e cria as estruturas usadas
-    # durante a execução.
-    # ======================================
 
     def __init__(
         self,
@@ -38,11 +26,11 @@ class GameServer:
         port=5000
     ):
 
-        # Endereço em que o servidor
-        # aceitará conexões.
-        self.host = host
+        # ==================================
+        # REDE
+        # ==================================
 
-        # Porta utilizada pelo servidor.
+        self.host = host
         self.port = port
 
 
@@ -50,18 +38,13 @@ class GameServer:
         # CONFIGURAÇÕES DO JOGO
         # ==================================
 
-        # Quantidade de pixels movimentados
-        # a cada comando recebido.
         self.move_speed = 10
 
-        # Dimensões do mapa.
         self.map_width = 800
         self.map_height = 600
 
-        # Tamanho atual do personagem.
         self.player_size = 40
 
-        # Distância mínima das bordas.
         self.map_margin = 20
 
 
@@ -69,43 +52,15 @@ class GameServer:
         # CLIENTES E JOGADORES
         # ==================================
 
-        # Guarda os sockets dos clientes
-        # atualmente conectados.
         self.clients = []
 
-        # Associa cada conexão a um objeto
-        # Player.
-        #
-        # Exemplo:
-        #
-        # {
-        #     conexao_1: Player("Math"),
-        #     conexao_2: Player("Lucas")
-        # }
         self.players = {}
-
-
-        # ==================================
-        # LOCK
-        # ==================================
-        # Como várias threads podem acessar
-        # self.players ao mesmo tempo,
-        # utilizamos um Lock para evitar
-        # alterações simultâneas perigosas.
-        # ==================================
 
         self.lock = threading.Lock()
 
 
         # ==================================
-        # OBSTÁCULOS DO MAPA
-        # ==================================
-        # Cada obstáculo possui:
-        #
-        # (x, y, largura, altura)
-        #
-        # Posteriormente isso pode ser
-        # movido para uma classe Map.
+        # OBSTÁCULOS
         # ==================================
 
         self.house_body = (
@@ -136,9 +91,6 @@ class GameServer:
             90
         )
 
-
-        # Lista geral das áreas que possuem
-        # colisão.
         self.obstacles = [
             self.house_body,
             self.house_roof,
@@ -156,10 +108,6 @@ class GameServer:
             socket.SOCK_STREAM
         )
 
-
-        # Permite reutilizar a porta
-        # rapidamente após reiniciar
-        # o servidor.
         self.server_socket.setsockopt(
             socket.SOL_SOCKET,
             socket.SO_REUSEADDR,
@@ -169,14 +117,6 @@ class GameServer:
 
     # ======================================
     # ENVIA UMA MENSAGEM
-    # ======================================
-    # Toda mensagem termina com "\n".
-    #
-    # Isso é importante porque TCP trabalha
-    # com um fluxo contínuo de bytes.
-    #
-    # O "\n" funciona como nosso separador
-    # de mensagens.
     # ======================================
 
     def send_message(
@@ -202,13 +142,6 @@ class GameServer:
     # ======================================
     # BROADCAST
     # ======================================
-    # Envia uma mensagem para vários
-    # clientes conectados.
-    #
-    # O parâmetro sender pode ser usado
-    # para não enviar novamente ao cliente
-    # que originou a mensagem.
-    # ======================================
 
     def broadcast(
         self,
@@ -229,11 +162,6 @@ class GameServer:
     # ======================================
     # ENVIA JOGADORES EXISTENTES
     # ======================================
-    # Quando um novo jogador entra,
-    # precisamos informar a ele quem já
-    # estava conectado e onde cada pessoa
-    # está no mapa.
-    # ======================================
 
     def send_existing_players(
         self,
@@ -253,6 +181,7 @@ class GameServer:
                 ):
 
                     self.send_message(
+
                         connection,
 
                         (
@@ -267,9 +196,6 @@ class GameServer:
     # ======================================
     # VERIFICA COLISÃO
     # ======================================
-    # Retorna True se o jogador estiver
-    # tentando ocupar uma região bloqueada.
-    # ======================================
 
     def is_colliding(
         self,
@@ -277,9 +203,7 @@ class GameServer:
         y
     ):
 
-        # Limites do jogador.
         player_left = x
-
         player_top = y
 
         player_right = (
@@ -291,20 +215,16 @@ class GameServer:
         )
 
 
-        # Verifica todos os obstáculos.
         for obstacle in self.obstacles:
 
             obstacle_x = obstacle[0]
-
             obstacle_y = obstacle[1]
 
             obstacle_width = obstacle[2]
-
             obstacle_height = obstacle[3]
 
 
             obstacle_left = obstacle_x
-
             obstacle_top = obstacle_y
 
             obstacle_right = (
@@ -318,8 +238,6 @@ class GameServer:
             )
 
 
-            # Verificação de sobreposição
-            # entre dois retângulos.
             collision = (
 
                 player_right
@@ -345,15 +263,7 @@ class GameServer:
 
 
     # ======================================
-    # PROCESSA MOVIMENTAÇÃO
-    # ======================================
-    # Recebe um comando enviado pelo
-    # cliente e calcula a nova posição.
-    #
-    # O servidor é a autoridade.
-    #
-    # O cliente não decide oficialmente
-    # onde está.
+    # PROCESSA MENSAGEM
     # ======================================
 
     def process_message(
@@ -362,8 +272,6 @@ class GameServer:
         message
     ):
 
-        # Verifica se existe jogador
-        # associado à conexão.
         if connection not in self.players:
 
             return
@@ -374,20 +282,68 @@ class GameServer:
         ]
 
 
-        # Guarda a posição atual.
-        old_x = player.x
-        old_y = player.y
+        # ==================================
+        # CHAT
+        # ==================================
+
+        if message.startswith("CHAT|"):
+
+            # Divide apenas uma vez.
+            #
+            # CHAT|Olá pessoal
+            #
+            # vira:
+            #
+            # ["CHAT", "Olá pessoal"]
+            parts = message.split(
+                "|",
+                1
+            )
 
 
-        # Começamos assumindo que a
-        # posição continuará igual.
-        new_x = old_x
-        new_y = old_y
+            if len(parts) < 2:
+
+                return
+
+
+            chat_message = parts[1]
+
+
+            # Ignora mensagens vazias
+            if not chat_message.strip():
+
+                return
+
+
+            print(
+                f"[CHAT] "
+                f"{player.name}: "
+                f"{chat_message}"
+            )
+
+
+            # Envia para TODOS,
+            # inclusive para quem escreveu.
+            self.broadcast(
+
+                (
+                    f"CHAT|"
+                    f"{player.name}|"
+                    f"{chat_message}"
+                )
+            )
+
+
+            return
 
 
         # ==================================
-        # COMANDOS DE MOVIMENTO
+        # MOVIMENTAÇÃO
         # ==================================
+
+        new_x = player.x
+        new_y = player.y
+
 
         if message == "MOVE_W":
 
@@ -411,15 +367,6 @@ class GameServer:
 
         else:
 
-            # Se ainda não for um comando
-            # conhecido, não fazemos nada.
-            #
-            # Futuramente aqui entrarão:
-            #
-            # CHAT
-            # COIN
-            # INTERACT
-            # etc.
             return
 
 
@@ -458,7 +405,7 @@ class GameServer:
 
 
         # ==================================
-        # COLISÃO
+        # COLISÕES
         # ==================================
 
         if not self.is_colliding(
@@ -466,17 +413,11 @@ class GameServer:
             new_y
         ):
 
-            # Utilizamos o método da classe
-            # Player para alterar a posição.
             player.set_position(
                 new_x,
                 new_y
             )
 
-
-        # ==================================
-        # POSIÇÃO OFICIAL
-        # ==================================
 
         x, y = player.get_position()
 
@@ -489,13 +430,6 @@ class GameServer:
 
         # ==================================
         # SINCRONIZAÇÃO
-        # ==================================
-        # Enviamos a posição oficial
-        # para TODOS os clientes.
-        #
-        # Inclusive para o próprio jogador,
-        # porque é o servidor que determina
-        # a posição válida.
         # ==================================
 
         self.broadcast(
@@ -510,10 +444,7 @@ class GameServer:
 
 
     # ======================================
-    # ATENDE UM CLIENTE
-    # ======================================
-    # Cada jogador conectado executará
-    # esta função em sua própria thread.
+    # ATENDE CLIENTE
     # ======================================
 
     def handle_client(
@@ -528,16 +459,12 @@ class GameServer:
         )
 
 
-        # Adiciona a conexão.
         self.clients.append(
             connection
         )
 
 
-        # Buffer utilizado para separar
-        # mensagens TCP.
         buffer = ""
-
 
         name = None
 
@@ -545,7 +472,7 @@ class GameServer:
         try:
 
             # ==================================
-            # RECEBE O NOME
+            # RECEBE NOME
             # ==================================
 
             while name is None:
@@ -574,7 +501,7 @@ class GameServer:
 
 
             # ==================================
-            # CRIA OBJETO PLAYER
+            # CRIA JOGADOR
             # ==================================
 
             player = Player(
@@ -584,7 +511,6 @@ class GameServer:
             )
 
 
-            # Associa conexão → jogador.
             with self.lock:
 
                 self.players[
@@ -598,18 +524,10 @@ class GameServer:
             )
 
 
-            # ==================================
-            # INFORMA JOGADORES EXISTENTES
-            # ==================================
-
             self.send_existing_players(
                 connection
             )
 
-
-            # ==================================
-            # AVISA A ENTRADA
-            # ==================================
 
             self.broadcast(
 
@@ -643,8 +561,6 @@ class GameServer:
                 buffer += data.decode()
 
 
-                # Pode haver mais de uma
-                # mensagem no mesmo recv().
                 while "\n" in buffer:
 
                     message, buffer = (
@@ -673,20 +589,12 @@ class GameServer:
 
         finally:
 
-            # ==================================
-            # REMOVE CLIENTE
-            # ==================================
-
             if connection in self.clients:
 
                 self.clients.remove(
                     connection
                 )
 
-
-            # ==================================
-            # REMOVE JOGADOR
-            # ==================================
 
             if connection in self.players:
 
@@ -702,7 +610,6 @@ class GameServer:
                     ]
 
 
-                # Avisa os demais.
                 self.broadcast(
                     f"LEAVE|{player.name}"
                 )
@@ -714,16 +621,11 @@ class GameServer:
                 )
 
 
-            # Fecha a conexão.
             connection.close()
 
 
     # ======================================
-    # INICIA O SERVIDOR
-    # ======================================
-    # Configura IP/porta, inicia o listen()
-    # e fica continuamente aceitando novos
-    # jogadores.
+    # INICIA SERVIDOR
     # ======================================
 
     def start(self):
@@ -757,27 +659,21 @@ class GameServer:
             f"{self.host}:{self.port}"
         )
 
+
         print(
             "Aguardando conexões..."
         )
 
 
-        # ==================================
-        # LOOP PRINCIPAL DO SERVIDOR
-        # ==================================
+        try:
 
-        while True:
+            while True:
 
-            try:
-
-                # Aguarda um cliente.
                 connection, address = (
                     self.server_socket.accept()
                 )
 
 
-                # Cria uma thread exclusiva
-                # para atender esse cliente.
                 thread = threading.Thread(
 
                     target=self.handle_client,
@@ -794,22 +690,13 @@ class GameServer:
                 thread.start()
 
 
-            except KeyboardInterrupt:
+        except KeyboardInterrupt:
 
-                print(
-                    "\nServidor encerrado."
-                )
-
-                break
+            print(
+                "\nServidor encerrado."
+            )
 
 
-            except Exception as error:
+        finally:
 
-                print(
-                    f"Erro no servidor: "
-                    f"{error}"
-                )
-
-
-        # Fecha o socket principal.
-        self.server_socket.close()
+            self.server_socket.close()
