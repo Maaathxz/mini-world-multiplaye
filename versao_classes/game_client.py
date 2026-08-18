@@ -1,29 +1,25 @@
 import threading
 
-
 # ==========================================
 # PYGAME
 # ==========================================
 
 try:
-
     import pygame
 
-
 except ImportError:
-
     raise SystemExit(
-        "Pygame é necessário para executar "
-        "o jogo. Instale com: "
-        "pip install pygame"
+        "Pygame é necessário para executar o jogo. "
+        "Instale com: pip install pygame"
     )
 
 
 # ==========================================
-# REDE
+# IMPORTAÇÕES DO PROJETO
 # ==========================================
 
 from network import NetworkClient
+from login_screen import LoginScreen
 
 
 # ==========================================
@@ -35,7 +31,7 @@ class Game:
     def __init__(self):
 
         # ==================================
-        # JANELA
+        # CONFIGURAÇÕES DA JANELA
         # ==================================
 
         self.width = 800
@@ -51,7 +47,77 @@ class Game:
 
 
         # ==================================
+        # PYGAME
+        # ==================================
+
+        pygame.init()
+
+        self.screen = pygame.display.set_mode(
+            (
+                self.width,
+                self.height
+            )
+        )
+
+        pygame.display.set_caption(
+            "Mini World Multiplayer"
+        )
+
+        self.clock = pygame.time.Clock()
+
+        self.font = pygame.font.Font(
+            None,
+            24
+        )
+
+        self.chat_font = pygame.font.Font(
+            None,
+            22
+        )
+
+        self.small_font = pygame.font.Font(
+            None,
+            18
+        )
+
+
+        # ==================================
+        # TELA DE LOGIN
+        # ==================================
+
+        self.login_screen = LoginScreen(
+            self.screen,
+            self.width,
+            self.height
+        )
+
+
+        # ==================================
+        # DADOS DO JOGADOR LOCAL
+        # ==================================
+
+        self.name = None
+
+        self.character = None
+
+
+        # ==================================
         # JOGADORES
+        # ==================================
+        #
+        # Agora guardamos:
+        #
+        # {
+        #     "Math": {
+        #         "x": 300,
+        #         "y": 300,
+        #         "character": "character_2"
+        #     }
+        # }
+        #
+        # Isso é melhor do que guardar apenas
+        # [x, y], porque teremos sprites,
+        # animações etc.
         # ==================================
 
         self.players = {}
@@ -62,131 +128,28 @@ class Game:
 
 
         # ==================================
-        # CHAT
-        # ==================================
-
-        # Histórico das mensagens.
-        self.chat_messages = []
-
-
-        # Texto que está sendo digitado.
-        self.chat_input = ""
-
-
-        # Indica se a caixa está ativa.
-        self.chat_active = False
-
-
-        # Máximo de mensagens exibidas.
-        self.max_chat_messages = 5
-
-
-        # Máximo aproximado de caracteres
-        # na mensagem.
-        self.max_chat_length = 60
-
-
-        # ==================================
-        # NOME DO JOGADOR
-        # ==================================
-
-        self.name = input(
-            "Digite o nome do jogador: "
-        )
-
-
-        # ==================================
         # REDE
         # ==================================
 
-        self.network = NetworkClient(
-            host="127.0.0.1",
-            port=5000
-        )
+        self.network = None
 
-
-        self.network.set_message_handler(
-            self.process_server_message
-        )
-
-
-        if not self.network.connect():
-
-            raise SystemExit(
-                "Não foi possível conectar "
-                "ao servidor."
-            )
-
-
-        self.network.start_receiving()
-
-
-        # Envia nome para o servidor
-        self.network.send(
-            self.name
-        )
-
-
-        # Posição inicial
-        self.players[
-            self.name
-        ] = [
-            300,
-            300
-        ]
+        self.connected = False
 
 
         # ==================================
-        # PYGAME
+        # CHAT
         # ==================================
 
-        pygame.init()
+        self.chat_messages = []
 
+        self.chat_input = ""
 
-        self.screen = (
-            pygame.display.set_mode(
-                (
-                    self.width,
-                    self.height
-                )
-            )
-        )
+        self.chat_active = False
 
+        self.max_chat_messages = 5
 
-        pygame.display.set_caption(
-            "Mini World Multiplayer"
-        )
+        self.max_chat_length = 60
 
-
-        self.clock = pygame.time.Clock()
-
-
-        # Fonte dos nomes
-        self.font = pygame.font.Font(
-            None,
-            24
-        )
-
-
-        # Fonte do chat
-        self.chat_font = pygame.font.Font(
-            None,
-            22
-        )
-
-
-        # Fonte menor para instruções
-        self.small_font = pygame.font.Font(
-            None,
-            18
-        )
-
-
-        # ==================================
-        # RETÂNGULO DO CHAT
-        # ==================================
-        # Canto inferior esquerdo.
-        # ==================================
 
         self.chat_rect = pygame.Rect(
             20,
@@ -196,7 +159,6 @@ class Game:
         )
 
 
-        # Área específica onde digitamos.
         self.chat_input_rect = pygame.Rect(
             30,
             540,
@@ -205,13 +167,104 @@ class Game:
         )
 
 
+        # ==================================
+        # CONTROLE
+        # ==================================
+
         self.last_move = 0
 
         self.running = True
 
+        # Estado atual da aplicação.
+        #
+        # "login"
+        # "game"
+        self.state = "login"
+
 
     # ======================================
-    # PROCESSA MENSAGENS DO SERVIDOR
+    # CONECTAR AO SERVIDOR
+    # ======================================
+
+    def connect_to_server(self):
+
+        # Cria o cliente de rede.
+        self.network = NetworkClient(
+            host="127.0.0.1",
+            port=5000
+        )
+
+
+        # Informa qual função deverá tratar
+        # as mensagens recebidas.
+        self.network.set_message_handler(
+            self.process_server_message
+        )
+
+
+        # Tenta conectar.
+        if not self.network.connect():
+
+            print(
+                "Não foi possível conectar "
+                "ao servidor."
+            )
+
+            return False
+
+
+        # Começa a receber mensagens
+        # em uma thread separada.
+        self.network.start_receiving()
+
+
+        # ==================================
+        # LOGIN
+        # ==================================
+        #
+        # Envia:
+        #
+        # LOGIN|Math|character_2
+        # ==================================
+
+        self.network.send(
+
+            (
+                f"LOGIN|"
+                f"{self.name}|"
+                f"{self.character}"
+            )
+        )
+
+
+        self.connected = True
+
+
+        # Adiciona o próprio jogador
+        # localmente.
+        self.players[
+            self.name
+        ] = {
+
+            "x": 300,
+
+            "y": 300,
+
+            "character": self.character
+        }
+
+
+        print(
+            f"{self.name} entrou como "
+            f"{self.character}"
+        )
+
+
+        return True
+
+
+    # ======================================
+    # PROCESSAR MENSAGENS DO SERVIDOR
     # ======================================
 
     def process_server_message(
@@ -233,45 +286,75 @@ class Game:
         # ==================================
         # JOGADOR EXISTENTE
         # ==================================
+        #
+        # PLAYER|nome|personagem|x|y
+        # ==================================
 
         if command == "PLAYER":
 
+            if len(parts) < 5:
+
+                return
+
+
             player_name = parts[1]
 
-            x = int(parts[2])
-            y = int(parts[3])
+            character = parts[2]
+
+            x = int(parts[3])
+
+            y = int(parts[4])
 
 
             with self.players_lock:
 
                 self.players[
                     player_name
-                ] = [
-                    x,
-                    y
-                ]
+                ] = {
+
+                    "x": x,
+
+                    "y": y,
+
+                    "character": character
+                }
 
 
         # ==================================
-        # ENTRADA
+        # NOVO JOGADOR
+        # ==================================
+        #
+        # ENTER|nome|personagem|x|y
         # ==================================
 
         elif command == "ENTER":
 
+            if len(parts) < 5:
+
+                return
+
+
             player_name = parts[1]
 
-            x = int(parts[2])
-            y = int(parts[3])
+            character = parts[2]
+
+            x = int(parts[3])
+
+            y = int(parts[4])
 
 
             with self.players_lock:
 
                 self.players[
                     player_name
-                ] = [
-                    x,
-                    y
-                ]
+                ] = {
+
+                    "x": x,
+
+                    "y": y,
+
+                    "character": character
+                }
 
 
             self.add_chat_message(
@@ -282,34 +365,51 @@ class Game:
         # ==================================
         # MOVIMENTO
         # ==================================
+        #
+        # MOVE|nome|x|y
+        # ==================================
 
         elif command == "MOVE":
+
+            if len(parts) < 4:
+
+                return
+
 
             player_name = parts[1]
 
             x = int(parts[2])
+
             y = int(parts[3])
 
 
             with self.players_lock:
 
-                self.players[
+                # Se o jogador já existe,
+                # apenas atualiza a posição.
+                if (
                     player_name
-                ] = [
-                    x,
-                    y
-                ]
+                    in self.players
+                ):
+
+                    self.players[
+                        player_name
+                    ]["x"] = x
+
+                    self.players[
+                        player_name
+                    ]["y"] = y
 
 
         # ==================================
         # CHAT
         # ==================================
+        #
+        # CHAT|nome|mensagem
+        # ==================================
 
         elif command == "CHAT":
 
-            # Usamos maxsplit=2 porque
-            # a própria mensagem pode conter
-            # outros caracteres "|".
             chat_parts = message.split(
                 "|",
                 2
@@ -321,9 +421,13 @@ class Game:
                 return
 
 
-            player_name = chat_parts[1]
+            player_name = (
+                chat_parts[1]
+            )
 
-            text = chat_parts[2]
+            text = (
+                chat_parts[2]
+            )
 
 
             self.add_chat_message(
@@ -332,10 +436,15 @@ class Game:
 
 
         # ==================================
-        # SAÍDA
+        # JOGADOR SAIU
         # ==================================
 
         elif command == "LEAVE":
+
+            if len(parts) < 2:
+
+                return
+
 
             player_name = parts[1]
 
@@ -357,6 +466,25 @@ class Game:
             )
 
 
+        # ==================================
+        # ERRO DO SERVIDOR
+        # ==================================
+
+        elif command == "ERROR":
+
+            error_message = (
+                parts[1]
+                if len(parts) > 1
+                else "ERRO_DESCONHECIDO"
+            )
+
+
+            print(
+                f"Erro do servidor: "
+                f"{error_message}"
+            )
+
+
     # ======================================
     # ADICIONAR MENSAGEM AO CHAT
     # ======================================
@@ -371,8 +499,6 @@ class Game:
         )
 
 
-        # Mantém apenas as últimas
-        # mensagens.
         if (
             len(self.chat_messages)
             > self.max_chat_messages
@@ -401,118 +527,190 @@ class Game:
             return
 
 
-        self.network.send(
-            f"CHAT|{message}"
-        )
+        if (
+            self.network
+            and self.connected
+        ):
+
+            self.network.send(
+                f"CHAT|{message}"
+            )
 
 
-        # Limpa a caixa depois de enviar.
         self.chat_input = ""
 
 
     # ======================================
-    # EVENTOS
+    # EVENTOS DA TELA DE LOGIN
+    # ======================================
+
+    def handle_login_events(
+        self,
+        event
+    ):
+
+        self.login_screen.handle_event(
+            event
+        )
+
+
+        # Quando a LoginScreen marca
+        # finished = True, o jogador
+        # confirmou nome/personagem.
+        if self.login_screen.finished:
+
+            self.name = (
+                self.login_screen
+                .player_name
+                .strip()
+            )
+
+
+            self.character = (
+                self.login_screen
+                .selected_character
+            )
+
+
+            # Tenta entrar no servidor.
+            if self.connect_to_server():
+
+                self.state = "game"
+
+
+            else:
+
+                # Se falhou, permite tentar
+                # novamente.
+                self.login_screen.finished = (
+                    False
+                )
+
+
+    # ======================================
+    # EVENTOS DO JOGO
+    # ======================================
+
+    def handle_game_events(
+        self,
+        event
+    ):
+
+        # ==================================
+        # CLIQUE DO MOUSE
+        # ==================================
+
+        if (
+            event.type
+            == pygame.MOUSEBUTTONDOWN
+        ):
+
+            if event.button == 1:
+
+                if (
+                    self.chat_input_rect
+                    .collidepoint(
+                        event.pos
+                    )
+                ):
+
+                    self.chat_active = True
+
+
+                else:
+
+                    self.chat_active = False
+
+
+        # ==================================
+        # DIGITAÇÃO DO CHAT
+        # ==================================
+
+        elif (
+            event.type
+            == pygame.KEYDOWN
+        ):
+
+            if self.chat_active:
+
+                # ENTER envia
+                if (
+                    event.key
+                    == pygame.K_RETURN
+                ):
+
+                    self.send_chat_message()
+
+
+                # BACKSPACE
+                elif (
+                    event.key
+                    == pygame.K_BACKSPACE
+                ):
+
+                    self.chat_input = (
+                        self.chat_input[:-1]
+                    )
+
+
+                # ESC fecha chat
+                elif (
+                    event.key
+                    == pygame.K_ESCAPE
+                ):
+
+                    self.chat_input = ""
+
+                    self.chat_active = False
+
+
+                # Texto normal
+                else:
+
+                    if (
+                        len(self.chat_input)
+                        < self.max_chat_length
+                    ):
+
+                        self.chat_input += (
+                            event.unicode
+                        )
+
+
+    # ======================================
+    # EVENTOS GERAIS
     # ======================================
 
     def handle_events(self):
 
         for event in pygame.event.get():
 
-            # ----------------------------------
-            # FECHAR JANELA
-            # ----------------------------------
-
-            if event.type == pygame.QUIT:
+            # Fechar jogo
+            if (
+                event.type
+                == pygame.QUIT
+            ):
 
                 self.running = False
 
-
-            # ----------------------------------
-            # CLIQUE DO MOUSE
-            # ----------------------------------
-
-            elif (
-                event.type
-                == pygame.MOUSEBUTTONDOWN
-            ):
-
-                # Clique esquerdo
-                if event.button == 1:
-
-                    # Se clicou na área
-                    # de entrada do chat...
-                    if (
-                        self.chat_input_rect
-                        .collidepoint(
-                            event.pos
-                        )
-                    ):
-
-                        self.chat_active = True
+                continue
 
 
-                    else:
+            # Dependendo do estado,
+            # enviamos o evento para uma
+            # tela diferente.
+            if self.state == "login":
 
-                        # Clicou fora
-                        self.chat_active = False
-
-
-            # ----------------------------------
-            # DIGITAÇÃO
-            # ----------------------------------
-
-            elif (
-                event.type
-                == pygame.KEYDOWN
-            ):
-
-                # Só captura texto se
-                # o chat estiver ativo.
-                if self.chat_active:
-
-                    # ENTER envia
-                    if (
-                        event.key
-                        == pygame.K_RETURN
-                    ):
-
-                        self.send_chat_message()
+                self.handle_login_events(
+                    event
+                )
 
 
-                    # BACKSPACE apaga
-                    elif (
-                        event.key
-                        == pygame.K_BACKSPACE
-                    ):
+            elif self.state == "game":
 
-                        self.chat_input = (
-                            self.chat_input[:-1]
-                        )
-
-
-                    # ESC cancela
-                    elif (
-                        event.key
-                        == pygame.K_ESCAPE
-                    ):
-
-                        self.chat_input = ""
-
-                        self.chat_active = False
-
-
-                    else:
-
-                        # Adiciona caractere
-                        # digitado.
-                        if (
-                            len(self.chat_input)
-                            < self.max_chat_length
-                        ):
-
-                            self.chat_input += (
-                                event.unicode
-                            )
+                self.handle_game_events(
+                    event
+                )
 
 
     # ======================================
@@ -521,9 +719,23 @@ class Game:
 
     def handle_input(self):
 
-        # Se o chat estiver ativo,
-        # NÃO movimenta o personagem.
+        # Só movimenta dentro do jogo.
+        if self.state != "game":
+
+            return
+
+
+        # Não movimenta enquanto
+        # estiver escrevendo no chat.
         if self.chat_active:
+
+            return
+
+
+        if (
+            not self.network
+            or not self.connected
+        ):
 
             return
 
@@ -586,7 +798,6 @@ class Game:
 
     def draw_map(self):
 
-        # Fundo
         self.screen.fill(
             (
                 210,
@@ -596,7 +807,7 @@ class Game:
         )
 
 
-        # Área principal
+        # Área jogável
         pygame.draw.rect(
             self.screen,
             (
@@ -753,36 +964,66 @@ class Game:
 
     def draw_players(self):
 
+        # Cores temporárias associadas
+        # aos personagens.
+        #
+        # Depois substituiremos por sprites.
+        character_colors = {
+
+            "character_1": (
+                60,
+                120,
+                230
+            ),
+
+            "character_2": (
+                220,
+                80,
+                90
+            ),
+
+            "character_3": (
+                70,
+                180,
+                110
+            )
+        }
+
+
         with self.players_lock:
 
             for (
                 player_name,
-                position
+                player_data
             ) in self.players.items():
 
-                x = position[0]
-                y = position[1]
+
+                x = player_data["x"]
+
+                y = player_data["y"]
+
+                character = (
+                    player_data[
+                        "character"
+                    ]
+                )
 
 
-                if (
-                    player_name
-                    == self.name
-                ):
-
-                    color = (
-                        50,
-                        100,
-                        230
+                color = (
+                    character_colors.get(
+                        character,
+                        (
+                            100,
+                            100,
+                            100
+                        )
                     )
+                )
 
-                else:
 
-                    color = (
-                        230,
-                        70,
-                        70
-                    )
-
+                # ==================================
+                # PERSONAGEM TEMPORÁRIO
+                # ==================================
 
                 pygame.draw.rect(
                     self.screen,
@@ -796,6 +1037,10 @@ class Game:
                     border_radius=8
                 )
 
+
+                # ==================================
+                # NOME
+                # ==================================
 
                 text = self.font.render(
                     player_name,
@@ -828,15 +1073,12 @@ class Game:
 
 
     # ======================================
-    # DESENHA CHAT
+    # CHAT
     # ======================================
 
     def draw_chat(self):
 
-        # ----------------------------------
-        # FUNDO DO CHAT
-        # ----------------------------------
-
+        # Fundo
         pygame.draw.rect(
             self.screen,
             (
@@ -849,10 +1091,7 @@ class Game:
         )
 
 
-        # ----------------------------------
-        # BORDA
-        # ----------------------------------
-
+        # Borda
         pygame.draw.rect(
             self.screen,
             (
@@ -866,17 +1105,16 @@ class Game:
         )
 
 
-        # ----------------------------------
-        # TÍTULO
-        # ----------------------------------
-
-        title = self.chat_font.render(
-            "Chat",
-            True,
-            (
-                30,
-                30,
-                30
+        # Título
+        title = (
+            self.chat_font.render(
+                "Chat",
+                True,
+                (
+                    30,
+                    30,
+                    30
+                )
             )
         )
 
@@ -890,26 +1128,28 @@ class Game:
         )
 
 
-        # ----------------------------------
-        # HISTÓRICO
-        # ----------------------------------
-
+        # Histórico
         start_y = (
             self.chat_rect.y + 35
         )
 
 
-        for index, message in enumerate(
+        for (
+            index,
+            message
+        ) in enumerate(
             self.chat_messages
         ):
 
-            text = self.small_font.render(
-                message,
-                True,
-                (
-                    30,
-                    30,
-                    30
+            text = (
+                self.small_font.render(
+                    message,
+                    True,
+                    (
+                        30,
+                        30,
+                        30
+                    )
                 )
             )
 
@@ -925,11 +1165,10 @@ class Game:
             )
 
 
-        # ----------------------------------
-        # CAIXA DE DIGITAÇÃO
-        # ----------------------------------
+        # ==================================
+        # CAMPO DE DIGITAÇÃO
+        # ==================================
 
-        # Cor muda quando ativa
         if self.chat_active:
 
             input_color = (
@@ -977,10 +1216,7 @@ class Game:
         )
 
 
-        # ----------------------------------
-        # TEXTO DE ENTRADA
-        # ----------------------------------
-
+        # Texto
         if self.chat_input:
 
             display_text = (
@@ -1026,18 +1262,35 @@ class Game:
 
 
     # ======================================
-    # DESENHAR FRAME
+    # DESENHO DO JOGO
     # ======================================
 
-    def draw(self):
+    def draw_game(self):
 
         self.draw_map()
 
         self.draw_players()
 
-        # Chat por último,
-        # para ficar por cima do cenário.
         self.draw_chat()
+
+
+    # ======================================
+    # DESENHAR
+    # ======================================
+
+    def draw(self):
+
+        # Tela inicial
+        if self.state == "login":
+
+            self.login_screen.draw()
+
+
+        # Mundo
+        elif self.state == "game":
+
+            self.draw_game()
+
 
         pygame.display.flip()
 
@@ -1061,7 +1314,14 @@ class Game:
             )
 
 
-        self.network.disconnect()
+        # ==================================
+        # ENCERRAMENTO
+        # ==================================
+
+        if self.network:
+
+            self.network.disconnect()
+
 
         pygame.quit()
 
