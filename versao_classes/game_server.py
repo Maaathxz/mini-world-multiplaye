@@ -5,22 +5,17 @@ from player import Player
 
 
 # ============================================================
-# GAME SERVER
+# CLASSE GAME SERVER
 # ============================================================
-# O servidor é responsável por:
-#
+# Responsável por:
 # - aceitar conexões
-# - registrar jogadores
-# - guardar personagem escolhido
-# - controlar movimentação
-# - controlar colisões
-# - sincronizar jogadores
-# - transmitir mensagens do chat
-#
-# IMPORTANTE:
-# O servidor é a "autoridade" do jogo.
-# O cliente pede para se mover, mas quem decide a posição
-# verdadeira é o servidor.
+# - criar jogadores
+# - processar login
+# - movimentação
+# - colisões
+# - chat
+# - sincronização
+# - enviar logs para a interface gráfica do servidor
 # ============================================================
 
 
@@ -29,20 +24,33 @@ class GameServer:
     def __init__(
         self,
         host="0.0.0.0",
-        port=5000
+        port=5000,
+        log_callback=None
     ):
 
-        # ----------------------------------------------------
-        # REDE
-        # ----------------------------------------------------
+        # ====================================================
+        # CONFIGURAÇÕES DE REDE
+        # ====================================================
 
         self.host = host
         self.port = port
 
 
-        # ----------------------------------------------------
-        # CONFIGURAÇÕES DO MUNDO
-        # ----------------------------------------------------
+        # ====================================================
+        # CALLBACK DE LOG
+        # ====================================================
+        # Se o servidor estiver sendo usado com server_gui.py,
+        # essa função envia as mensagens para a janela.
+        #
+        # Se não houver callback, usa print() normalmente.
+        # ====================================================
+
+        self.log_callback = log_callback
+
+
+        # ====================================================
+        # CONFIGURAÇÕES DO JOGO
+        # ====================================================
 
         self.move_speed = 10
 
@@ -54,42 +62,28 @@ class GameServer:
         self.map_margin = 20
 
 
-        # ----------------------------------------------------
-        # CLIENTES
-        # ----------------------------------------------------
+        # ====================================================
+        # CLIENTES E JOGADORES
+        # ====================================================
 
-        # Lista com as conexões TCP.
+        # Lista de sockets conectados.
         self.clients = []
 
-
         # Dicionário:
-        #
-        # conexão -> objeto Player
-        #
-        # Exemplo:
-        #
-        # {
-        #     socket_cliente: Player(...)
-        # }
-
+        # conexão -> Player
         self.players = {}
 
-
-        # Como cada cliente roda em uma thread,
-        # usamos Lock ao modificar self.players.
+        # Evita conflitos entre threads.
         self.lock = threading.Lock()
 
 
-        # ----------------------------------------------------
-        # OBSTÁCULOS
-        # ----------------------------------------------------
+        # ====================================================
+        # OBSTÁCULOS DO MAPA
+        # ====================================================
         #
         # Formato:
-        #
         # (x, y, largura, altura)
-        #
-        # Depois podemos mover isso para uma classe Map.
-        # ----------------------------------------------------
+        # ====================================================
 
         self.house_body = (
             600,
@@ -121,20 +115,16 @@ class GameServer:
 
 
         self.obstacles = [
-
             self.house_body,
-
             self.house_roof,
-
             self.tree_1,
-
             self.tree_2
         ]
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # SOCKET DO SERVIDOR
-        # ----------------------------------------------------
+        # ====================================================
 
         self.server_socket = socket.socket(
             socket.AF_INET,
@@ -142,8 +132,8 @@ class GameServer:
         )
 
 
-        # Permite reutilizar a porta rapidamente
-        # depois que o servidor for encerrado.
+        # Permite reutilizar a porta
+        # após reiniciar o servidor.
         self.server_socket.setsockopt(
             socket.SOL_SOCKET,
             socket.SO_REUSEADDR,
@@ -151,8 +141,31 @@ class GameServer:
         )
 
 
+        # Controla se o servidor está ativo.
+        self.running = False
+
+
     # ========================================================
-    # ENVIAR MENSAGEM
+    # LOG
+    # ========================================================
+
+    def log(self, message):
+
+        if self.log_callback:
+
+            self.log_callback(
+                message
+            )
+
+        else:
+
+            print(
+                message
+            )
+
+
+    # ========================================================
+    # ENVIAR MENSAGEM PARA UM CLIENTE
     # ========================================================
 
     def send_message(
@@ -163,14 +176,13 @@ class GameServer:
 
         try:
 
-            # "\n" marca o final de cada mensagem.
             connection.sendall(
                 (message + "\n").encode()
             )
 
         except Exception as error:
 
-            print(
+            self.log(
                 f"Erro ao enviar mensagem: {error}"
             )
 
@@ -178,10 +190,10 @@ class GameServer:
     # ========================================================
     # BROADCAST
     # ========================================================
+    # Envia uma mensagem para todos os clientes.
     #
-    # Envia uma mensagem para vários jogadores.
-    #
-    # Se sender for informado, esse cliente não recebe.
+    # sender pode ser usado para excluir
+    # quem originou a mensagem.
     # ========================================================
 
     def broadcast(
@@ -203,21 +215,12 @@ class GameServer:
     # ========================================================
     # ENVIAR JOGADORES EXISTENTES
     # ========================================================
+    # Quando um jogador entra, ele precisa saber
+    # quem já está conectado.
     #
-    # Quando Lucas entra e Math já está conectado,
-    # Lucas precisa descobrir:
-    #
-    # - nome de Math
-    # - personagem de Math
-    # - posição de Math
-    #
-    # Agora o protocolo é:
+    # Protocolo:
     #
     # PLAYER|nome|personagem|x|y
-    #
-    # Exemplo:
-    #
-    # PLAYER|Math|character_2|300|300
     # ========================================================
 
     def send_existing_players(
@@ -252,7 +255,7 @@ class GameServer:
 
 
     # ========================================================
-    # COLISÃO
+    # VERIFICAR COLISÃO
     # ========================================================
 
     def is_colliding(
@@ -261,10 +264,8 @@ class GameServer:
         y
     ):
 
-        # Retângulo do jogador.
-
+        # Limites do jogador.
         player_left = x
-
         player_top = y
 
         player_right = (
@@ -276,21 +277,17 @@ class GameServer:
         )
 
 
-        # Compara o jogador com cada obstáculo.
-
+        # Verifica cada obstáculo.
         for obstacle in self.obstacles:
 
             obstacle_x = obstacle[0]
-
             obstacle_y = obstacle[1]
 
             obstacle_width = obstacle[2]
-
             obstacle_height = obstacle[3]
 
 
             obstacle_left = obstacle_x
-
             obstacle_top = obstacle_y
 
             obstacle_right = (
@@ -329,7 +326,7 @@ class GameServer:
 
 
     # ========================================================
-    # PROCESSAR MENSAGEM DO JOGADOR
+    # PROCESSAR MENSAGEM DO CLIENTE
     # ========================================================
 
     def process_message(
@@ -338,9 +335,7 @@ class GameServer:
         message
     ):
 
-        # Segurança:
-        # só processamos comandos de jogadores registrados.
-
+        # Só processa jogadores registrados.
         if connection not in self.players:
 
             return
@@ -357,14 +352,16 @@ class GameServer:
         #
         # Cliente envia:
         #
-        # CHAT|Olá pessoal!
+        # CHAT|Olá!
         #
-        # Servidor envia para todos:
+        # Servidor envia:
         #
-        # CHAT|Math|Olá pessoal!
+        # CHAT|Math|Olá!
         # ====================================================
 
-        if message.startswith("CHAT|"):
+        if message.startswith(
+            "CHAT|"
+        ):
 
             parts = message.split(
                 "|",
@@ -380,14 +377,12 @@ class GameServer:
             chat_message = parts[1]
 
 
-            # Não envia mensagem vazia.
-
             if not chat_message.strip():
 
                 return
 
 
-            print(
+            self.log(
                 f"[CHAT] "
                 f"{player.name}: "
                 f"{chat_message}"
@@ -412,35 +407,29 @@ class GameServer:
         # ====================================================
 
         new_x = player.x
-
         new_y = player.y
 
 
-        # W
         if message == "MOVE_W":
 
             new_y -= self.move_speed
 
 
-        # S
         elif message == "MOVE_S":
 
             new_y += self.move_speed
 
 
-        # A
         elif message == "MOVE_A":
 
             new_x -= self.move_speed
 
 
-        # D
         elif message == "MOVE_D":
 
             new_x += self.move_speed
 
 
-        # Comando desconhecido
         else:
 
             return
@@ -483,9 +472,6 @@ class GameServer:
         # ====================================================
         # COLISÃO
         # ====================================================
-        #
-        # Só atualizamos a posição se ela for válida.
-        # ====================================================
 
         if not self.is_colliding(
             new_x,
@@ -498,24 +484,14 @@ class GameServer:
             )
 
 
-        # Posição oficial depois da validação.
-
-        x, y = player.get_position()
-
-
-        print(
-            f"{player.name} está em "
-            f"X={x}, Y={y}"
+        # Posição oficial.
+        x, y = (
+            player.get_position()
         )
 
 
         # ====================================================
         # SINCRONIZAÇÃO
-        # ====================================================
-        #
-        # Todos recebem a posição oficial.
-        #
-        # MOVE|Math|310|300
         # ====================================================
 
         self.broadcast(
@@ -539,8 +515,8 @@ class GameServer:
         address
     ):
 
-        print(
-            f"Cliente conectado: {address}"
+        self.log(
+            f"Nova conexão: {address}"
         )
 
 
@@ -558,16 +534,9 @@ class GameServer:
             # LOGIN
             # =================================================
             #
-            # ANTES:
-            #
-            # Math
-            #
-            # AGORA:
+            # Esperado:
             #
             # LOGIN|Math|character_2
-            #
-            # Isso permite que o servidor saiba qual
-            # personagem foi escolhido.
             # =================================================
 
             login_complete = False
@@ -585,34 +554,33 @@ class GameServer:
                     return
 
 
-                buffer += data.decode()
+                buffer += (
+                    data.decode()
+                )
 
-
-                # Espera uma mensagem completa.
 
                 if "\n" in buffer:
 
-                    login_message, buffer = (
-                        buffer.split(
-                            "\n",
-                            1
+                    (
+                        login_message,
+                        buffer
+                    ) = buffer.split(
+                        "\n",
+                        1
+                    )
+
+
+                    parts = (
+                        login_message.split(
+                            "|",
+                            2
                         )
                     )
 
 
-                    # Divide:
-                    #
-                    # LOGIN
-                    # Math
-                    # character_2
-
-                    parts = login_message.split(
-                        "|",
-                        2
-                    )
-
-
-                    # Verifica protocolo.
+                    # ==========================================
+                    # VALIDA LOGIN
+                    # ==========================================
 
                     if (
                         len(parts) != 3
@@ -627,13 +595,17 @@ class GameServer:
                         return
 
 
-                    name = parts[1].strip()
+                    name = (
+                        parts[1].strip()
+                    )
 
-                    character = parts[2].strip()
+
+                    character = (
+                        parts[2].strip()
+                    )
 
 
-                    # Nome não pode ser vazio.
-
+                    # Nome obrigatório.
                     if not name:
 
                         self.send_message(
@@ -644,16 +616,9 @@ class GameServer:
                         return
 
 
-                    # =================================================
-                    # VALIDA PERSONAGEM
-                    # =================================================
-                    #
-                    # O cliente não pode inventar:
-                    #
-                    # character_999
-                    #
-                    # Só aceitamos personagens conhecidos.
-                    # =================================================
+                    # ==========================================
+                    # PERSONAGENS PERMITIDOS
+                    # ==========================================
 
                     valid_characters = [
 
@@ -697,8 +662,6 @@ class GameServer:
             )
 
 
-            # Adiciona ao servidor.
-
             with self.lock:
 
                 self.players[
@@ -706,9 +669,19 @@ class GameServer:
                 ] = player
 
 
-            print(
-                f"{player.name} entrou no mundo "
-                f"usando {player.character}!"
+            # =================================================
+            # LOG DE ENTRADA
+            # =================================================
+
+            self.log(
+                f"{player.name} entrou "
+                f"usando {player.character}"
+            )
+
+
+            self.log(
+                f"Jogadores online: "
+                f"{len(self.players)}"
             )
 
 
@@ -716,19 +689,16 @@ class GameServer:
             # SINCRONIZAÇÃO INICIAL
             # =================================================
 
-
-            # Primeiro enviamos para o novo jogador
-            # quem já estava no servidor.
+            # Envia jogadores já existentes
+            # para quem acabou de entrar.
 
             self.send_existing_players(
                 connection
             )
 
 
-            # Depois avisamos os outros sobre
-            # quem acabou de entrar.
-            #
-            # ENTER|nome|personagem|x|y
+            # Informa aos outros sobre
+            # o novo jogador.
 
             self.broadcast(
 
@@ -745,10 +715,10 @@ class GameServer:
 
 
             # =================================================
-            # LOOP PRINCIPAL DO CLIENTE
+            # LOOP DO CLIENTE
             # =================================================
 
-            while True:
+            while self.running:
 
                 data = connection.recv(
                     1024
@@ -760,19 +730,19 @@ class GameServer:
                     break
 
 
-                buffer += data.decode()
+                buffer += (
+                    data.decode()
+                )
 
-
-                # Pode chegar mais de uma mensagem
-                # no mesmo pacote TCP.
 
                 while "\n" in buffer:
 
-                    message, buffer = (
-                        buffer.split(
-                            "\n",
-                            1
-                        )
+                    (
+                        message,
+                        buffer
+                    ) = buffer.split(
+                        "\n",
+                        1
                     )
 
 
@@ -786,15 +756,18 @@ class GameServer:
 
         except Exception as error:
 
-            print(
-                f"Erro com {address}: {error}"
-            )
+            if self.running:
+
+                self.log(
+                    f"Erro com {address}: "
+                    f"{error}"
+                )
 
 
         finally:
 
             # =================================================
-            # DESCONEXÃO
+            # REMOVE CLIENTE
             # =================================================
 
             if connection in self.clients:
@@ -804,11 +777,17 @@ class GameServer:
                 )
 
 
+            # =================================================
+            # REMOVE JOGADOR
+            # =================================================
+
             if connection in self.players:
 
-                player = self.players[
-                    connection
-                ]
+                player = (
+                    self.players[
+                        connection
+                    ]
+                )
 
 
                 with self.lock:
@@ -819,14 +798,20 @@ class GameServer:
 
 
                 # Avisa os outros.
-
                 self.broadcast(
                     f"LEAVE|{player.name}"
                 )
 
 
-                print(
-                    f"{player.name} saiu do mundo!"
+                self.log(
+                    f"{player.name} "
+                    f"saiu do mundo"
+                )
+
+
+                self.log(
+                    f"Jogadores online: "
+                    f"{len(self.players)}"
                 )
 
 
@@ -845,76 +830,167 @@ class GameServer:
 
     def start(self):
 
-        self.server_socket.bind(
-            (
-                self.host,
-                self.port
-            )
-        )
-
-
-        self.server_socket.listen()
-
-
-        print(
-            "=============================="
-        )
-
-        print(
-            "      MINI WORLD SERVER"
-        )
-
-        print(
-            "=============================="
-        )
-
-
-        print(
-            f"Servidor iniciado em "
-            f"{self.host}:{self.port}"
-        )
-
-
-        print(
-            "Aguardando conexões..."
-        )
-
-
         try:
 
-            while True:
-
-                connection, address = (
-                    self.server_socket.accept()
+            # Associa IP e porta.
+            self.server_socket.bind(
+                (
+                    self.host,
+                    self.port
                 )
+            )
 
 
-                # Cada jogador fica em uma
-                # thread independente.
+            # Começa a ouvir conexões.
+            self.server_socket.listen()
 
-                thread = threading.Thread(
 
-                    target=self.handle_client,
+            self.running = True
 
-                    args=(
+
+            # =================================================
+            # LOG DE STATUS
+            # =================================================
+
+            self.log(
+                "Servidor ONLINE"
+            )
+
+
+            self.log(
+                f"Escutando em "
+                f"{self.host}:{self.port}"
+            )
+
+
+            self.log(
+                "Aguardando jogadores..."
+            )
+
+
+            # =================================================
+            # LOOP PRINCIPAL
+            # =================================================
+
+            while self.running:
+
+                try:
+
+                    (
                         connection,
                         address
-                    ),
-
-                    daemon=True
-                )
-
-
-                thread.start()
+                    ) = (
+                        self.server_socket
+                        .accept()
+                    )
 
 
-        except KeyboardInterrupt:
+                    # Cada cliente roda
+                    # em uma thread separada.
 
-            print(
-                "\nServidor encerrado."
+                    thread = (
+                        threading.Thread(
+
+                            target=
+                            self.handle_client,
+
+                            args=(
+                                connection,
+                                address
+                            ),
+
+                            daemon=True
+                        )
+                    )
+
+
+                    thread.start()
+
+
+                except OSError:
+
+                    # O socket foi fechado
+                    # durante stop().
+                    break
+
+
+        except Exception as error:
+
+            self.log(
+                f"Erro ao iniciar servidor: "
+                f"{error}"
             )
 
 
         finally:
 
+            self.running = False
+
+
+            self.log(
+                "Servidor OFFLINE"
+            )
+
+
+    # ========================================================
+    # PARAR SERVIDOR
+    # ========================================================
+
+    def stop(self):
+
+        # Evita chamar várias vezes.
+        if not self.running:
+
+            return
+
+
+        self.log(
+            "Encerrando servidor..."
+        )
+
+
+        self.running = False
+
+
+        # ====================================================
+        # FECHA CLIENTES
+        # ====================================================
+
+        for connection in (
+            self.clients.copy()
+        ):
+
+            try:
+
+                connection.shutdown(
+                    socket.SHUT_RDWR
+                )
+
+            except Exception:
+
+                pass
+
+
+            try:
+
+                connection.close()
+
+            except Exception:
+
+                pass
+
+
+        self.clients.clear()
+
+
+        # ====================================================
+        # FECHA SOCKET PRINCIPAL
+        # ====================================================
+
+        try:
+
             self.server_socket.close()
+
+        except Exception:
+
+            pass

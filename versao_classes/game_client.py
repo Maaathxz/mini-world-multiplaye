@@ -1,16 +1,24 @@
+import os
+import sys
+import json
 import threading
+
 
 # ==========================================
 # PYGAME
 # ==========================================
 
 try:
+
     import pygame
 
+
 except ImportError:
+
     raise SystemExit(
-        "Pygame é necessário para executar o jogo. "
-        "Instale com: pip install pygame"
+        "Pygame é necessário para executar "
+        "o jogo. Instale com: "
+        "pip install pygame"
     )
 
 
@@ -20,6 +28,59 @@ except ImportError:
 
 from network import NetworkClient
 from login_screen import LoginScreen
+
+
+# ==========================================
+# CAMINHO BASE
+# ==========================================
+# Permite encontrar config.json tanto
+# executando pelo Python quanto pelo .exe.
+# ==========================================
+
+def get_base_path():
+
+    if getattr(
+        sys,
+        "frozen",
+        False
+    ):
+
+        return os.path.dirname(
+            sys.executable
+        )
+
+
+    return os.path.dirname(
+        os.path.abspath(
+            __file__
+        )
+    )
+
+
+# ==========================================
+# CARREGAR CONFIGURAÇÃO
+# ==========================================
+
+def load_config():
+
+    base_path = get_base_path()
+
+
+    config_path = os.path.join(
+        base_path,
+        "config.json"
+    )
+
+
+    with open(
+        config_path,
+        "r",
+        encoding="utf-8"
+    ) as file:
+
+        return json.load(
+            file
+        )
 
 
 # ==========================================
@@ -35,6 +96,7 @@ class Game:
         # ==================================
 
         self.width = 800
+
         self.height = 600
 
         self.player_size = 40
@@ -52,32 +114,48 @@ class Game:
 
         pygame.init()
 
-        self.screen = pygame.display.set_mode(
-            (
-                self.width,
-                self.height
+
+        self.screen = (
+            pygame.display.set_mode(
+                (
+                    self.width,
+                    self.height
+                )
             )
         )
+
 
         pygame.display.set_caption(
             "Mini World Multiplayer"
         )
 
-        self.clock = pygame.time.Clock()
 
-        self.font = pygame.font.Font(
-            None,
-            24
+        self.clock = (
+            pygame.time.Clock()
         )
 
-        self.chat_font = pygame.font.Font(
-            None,
-            22
+
+        self.font = (
+            pygame.font.Font(
+                None,
+                24
+            )
         )
 
-        self.small_font = pygame.font.Font(
-            None,
-            18
+
+        self.chat_font = (
+            pygame.font.Font(
+                None,
+                22
+            )
+        )
+
+
+        self.small_font = (
+            pygame.font.Font(
+                None,
+                18
+            )
         )
 
 
@@ -93,7 +171,7 @@ class Game:
 
 
         # ==================================
-        # DADOS DO JOGADOR LOCAL
+        # DADOS DO JOGADOR
         # ==================================
 
         self.name = None
@@ -102,25 +180,11 @@ class Game:
 
 
         # ==================================
-        # JOGADORES
-        # ==================================
-        #
-        # Agora guardamos:
-        #
-        # {
-        #     "Math": {
-        #         "x": 300,
-        #         "y": 300,
-        #         "character": "character_2"
-        #     }
-        # }
-        #
-        # Isso é melhor do que guardar apenas
-        # [x, y], porque teremos sprites,
-        # animações etc.
+        # JOGADORES ONLINE
         # ==================================
 
         self.players = {}
+
 
         self.players_lock = (
             threading.Lock()
@@ -134,6 +198,32 @@ class Game:
         self.network = None
 
         self.connected = False
+
+
+        # ==================================
+        # CONFIGURAÇÃO
+        # ==================================
+
+        try:
+
+            self.config = load_config()
+
+
+        except FileNotFoundError:
+
+            raise SystemExit(
+                "Arquivo config.json não encontrado.\n"
+                "Coloque o config.json na mesma pasta "
+                "do game_client.exe."
+            )
+
+
+        except json.JSONDecodeError:
+
+            raise SystemExit(
+                "O arquivo config.json possui "
+                "um formato inválido."
+            )
 
 
         # ==================================
@@ -159,11 +249,13 @@ class Game:
         )
 
 
-        self.chat_input_rect = pygame.Rect(
-            30,
-            540,
-            320,
-            30
+        self.chat_input_rect = (
+            pygame.Rect(
+                30,
+                540,
+                320,
+                30
+            )
         )
 
 
@@ -175,11 +267,38 @@ class Game:
 
         self.running = True
 
-        # Estado atual da aplicação.
-        #
-        # "login"
-        # "game"
         self.state = "login"
+
+
+    # ======================================
+    # SERVIDOR DESCONECTOU
+    # ======================================
+    # Esta função é chamada automaticamente
+    # pelo NetworkClient quando o servidor
+    # fecha ou a conexão é perdida.
+    # ======================================
+
+    def server_disconnected(self):
+
+        # Se o próprio jogo já estiver
+        # fechando, não precisamos repetir.
+        if not self.running:
+
+            return
+
+
+        print(
+            "Conexão com o servidor "
+            "foi encerrada."
+        )
+
+
+        self.connected = False
+
+
+        # Encerra o loop principal
+        # do Pygame.
+        self.running = False
 
 
     # ======================================
@@ -188,21 +307,56 @@ class Game:
 
     def connect_to_server(self):
 
-        # Cria o cliente de rede.
-        self.network = NetworkClient(
-            host="127.0.0.1",
-            port=5000
+        server_ip = (
+            self.config[
+                "server_ip"
+            ]
         )
 
 
-        # Informa qual função deverá tratar
-        # as mensagens recebidas.
+        server_port = (
+            self.config[
+                "server_port"
+            ]
+        )
+
+
+        # ==================================
+        # CRIA CLIENTE DE REDE
+        # ==================================
+
+        self.network = (
+            NetworkClient(
+                host=server_ip,
+                port=server_port
+            )
+        )
+
+
+        # Mensagens recebidas
         self.network.set_message_handler(
             self.process_server_message
         )
 
 
-        # Tenta conectar.
+        # ==================================
+        # CALLBACK DE DESCONEXÃO
+        # ==================================
+        # Quando o servidor fechar,
+        # NetworkClient chama:
+        #
+        # self.server_disconnected()
+        # ==================================
+
+        self.network.set_disconnect_handler(
+            self.server_disconnected
+        )
+
+
+        # ==================================
+        # CONECTAR
+        # ==================================
+
         if not self.network.connect():
 
             print(
@@ -213,18 +367,12 @@ class Game:
             return False
 
 
-        # Começa a receber mensagens
-        # em uma thread separada.
+        # Thread de recebimento
         self.network.start_receiving()
 
 
         # ==================================
         # LOGIN
-        # ==================================
-        #
-        # Envia:
-        #
-        # LOGIN|Math|character_2
         # ==================================
 
         self.network.send(
@@ -240,8 +388,10 @@ class Game:
         self.connected = True
 
 
-        # Adiciona o próprio jogador
-        # localmente.
+        # ==================================
+        # JOGADOR LOCAL
+        # ==================================
+
         self.players[
             self.name
         ] = {
@@ -250,7 +400,8 @@ class Game:
 
             "y": 300,
 
-            "character": self.character
+            "character":
+            self.character
         }
 
 
@@ -264,7 +415,7 @@ class Game:
 
 
     # ======================================
-    # PROCESSAR MENSAGENS DO SERVIDOR
+    # PROCESSAR MENSAGEM DO SERVIDOR
     # ======================================
 
     def process_server_message(
@@ -272,7 +423,9 @@ class Game:
         message
     ):
 
-        parts = message.split("|")
+        parts = message.split(
+            "|"
+        )
 
 
         if not parts:
@@ -284,10 +437,7 @@ class Game:
 
 
         # ==================================
-        # JOGADOR EXISTENTE
-        # ==================================
-        #
-        # PLAYER|nome|personagem|x|y
+        # PLAYER
         # ==================================
 
         if command == "PLAYER":
@@ -316,15 +466,13 @@ class Game:
 
                     "y": y,
 
-                    "character": character
+                    "character":
+                    character
                 }
 
 
         # ==================================
-        # NOVO JOGADOR
-        # ==================================
-        #
-        # ENTER|nome|personagem|x|y
+        # ENTER
         # ==================================
 
         elif command == "ENTER":
@@ -353,20 +501,19 @@ class Game:
 
                     "y": y,
 
-                    "character": character
+                    "character":
+                    character
                 }
 
 
             self.add_chat_message(
-                f"{player_name} entrou no mundo."
+                f"{player_name} "
+                f"entrou no mundo."
             )
 
 
         # ==================================
-        # MOVIMENTO
-        # ==================================
-        #
-        # MOVE|nome|x|y
+        # MOVE
         # ==================================
 
         elif command == "MOVE":
@@ -385,8 +532,6 @@ class Game:
 
             with self.players_lock:
 
-                # Se o jogador já existe,
-                # apenas atualiza a posição.
                 if (
                     player_name
                     in self.players
@@ -396,6 +541,7 @@ class Game:
                         player_name
                     ]["x"] = x
 
+
                     self.players[
                         player_name
                     ]["y"] = y
@@ -404,19 +550,21 @@ class Game:
         # ==================================
         # CHAT
         # ==================================
-        #
-        # CHAT|nome|mensagem
-        # ==================================
 
         elif command == "CHAT":
 
-            chat_parts = message.split(
-                "|",
-                2
+            chat_parts = (
+                message.split(
+                    "|",
+                    2
+                )
             )
 
 
-            if len(chat_parts) < 3:
+            if (
+                len(chat_parts)
+                < 3
+            ):
 
                 return
 
@@ -425,18 +573,20 @@ class Game:
                 chat_parts[1]
             )
 
+
             text = (
                 chat_parts[2]
             )
 
 
             self.add_chat_message(
-                f"{player_name}: {text}"
+                f"{player_name}: "
+                f"{text}"
             )
 
 
         # ==================================
-        # JOGADOR SAIU
+        # LEAVE
         # ==================================
 
         elif command == "LEAVE":
@@ -462,19 +612,23 @@ class Game:
 
 
             self.add_chat_message(
-                f"{player_name} saiu do mundo."
+                f"{player_name} "
+                f"saiu do mundo."
             )
 
 
         # ==================================
-        # ERRO DO SERVIDOR
+        # ERROR
         # ==================================
 
         elif command == "ERROR":
 
             error_message = (
+
                 parts[1]
+
                 if len(parts) > 1
+
                 else "ERRO_DESCONHECIDO"
             )
 
@@ -554,12 +708,10 @@ class Game:
         )
 
 
-        # Quando a LoginScreen marca
-        # finished = True, o jogador
-        # confirmou nome/personagem.
         if self.login_screen.finished:
 
             self.name = (
+
                 self.login_screen
                 .player_name
                 .strip()
@@ -567,12 +719,12 @@ class Game:
 
 
             self.character = (
+
                 self.login_screen
                 .selected_character
             )
 
 
-            # Tenta entrar no servidor.
             if self.connect_to_server():
 
                 self.state = "game"
@@ -580,8 +732,6 @@ class Game:
 
             else:
 
-                # Se falhou, permite tentar
-                # novamente.
                 self.login_screen.finished = (
                     False
                 )
@@ -597,7 +747,7 @@ class Game:
     ):
 
         # ==================================
-        # CLIQUE DO MOUSE
+        # MOUSE
         # ==================================
 
         if (
@@ -623,7 +773,7 @@ class Game:
 
 
         # ==================================
-        # DIGITAÇÃO DO CHAT
+        # TECLADO DO CHAT
         # ==================================
 
         elif (
@@ -633,7 +783,7 @@ class Game:
 
             if self.chat_active:
 
-                # ENTER envia
+                # ENTER
                 if (
                     event.key
                     == pygame.K_RETURN
@@ -653,7 +803,7 @@ class Game:
                     )
 
 
-                # ESC fecha chat
+                # ESC
                 elif (
                     event.key
                     == pygame.K_ESCAPE
@@ -664,7 +814,6 @@ class Game:
                     self.chat_active = False
 
 
-                # Texto normal
                 else:
 
                     if (
@@ -685,26 +834,31 @@ class Game:
 
         for event in pygame.event.get():
 
-            # Fechar jogo
-            if (
-                event.type
-                == pygame.QUIT
-            ):
+            # ==================================
+            # FECHAR JANELA
+            # ==================================
+
+            if event.type == pygame.QUIT:
 
                 self.running = False
 
                 continue
 
 
-            # Dependendo do estado,
-            # enviamos o evento para uma
-            # tela diferente.
+            # ==================================
+            # LOGIN
+            # ==================================
+
             if self.state == "login":
 
                 self.handle_login_events(
                     event
                 )
 
+
+            # ==================================
+            # JOGO
+            # ==================================
 
             elif self.state == "game":
 
@@ -719,14 +873,13 @@ class Game:
 
     def handle_input(self):
 
-        # Só movimenta dentro do jogo.
         if self.state != "game":
 
             return
 
 
-        # Não movimenta enquanto
-        # estiver escrevendo no chat.
+        # Enquanto escreve no chat,
+        # não movimenta.
         if self.chat_active:
 
             return
@@ -740,7 +893,9 @@ class Game:
             return
 
 
-        keys = pygame.key.get_pressed()
+        keys = (
+            pygame.key.get_pressed()
+        )
 
 
         current_time = (
@@ -918,6 +1073,7 @@ class Game:
         )
 
 
+        # Telhado
         pygame.draw.polygon(
             self.screen,
             (
@@ -942,6 +1098,7 @@ class Game:
         )
 
 
+        # Porta
         pygame.draw.rect(
             self.screen,
             (
@@ -959,15 +1116,11 @@ class Game:
 
 
     # ======================================
-    # JOGADORES
+    # DESENHAR JOGADORES
     # ======================================
 
     def draw_players(self):
 
-        # Cores temporárias associadas
-        # aos personagens.
-        #
-        # Depois substituiremos por sprites.
         character_colors = {
 
             "character_1": (
@@ -998,9 +1151,15 @@ class Game:
             ) in self.players.items():
 
 
-                x = player_data["x"]
+                x = (
+                    player_data["x"]
+                )
 
-                y = player_data["y"]
+
+                y = (
+                    player_data["y"]
+                )
+
 
                 character = (
                     player_data[
@@ -1021,10 +1180,7 @@ class Game:
                 )
 
 
-                # ==================================
-                # PERSONAGEM TEMPORÁRIO
-                # ==================================
-
+                # Personagem temporário
                 pygame.draw.rect(
                     self.screen,
                     color,
@@ -1038,17 +1194,16 @@ class Game:
                 )
 
 
-                # ==================================
-                # NOME
-                # ==================================
-
-                text = self.font.render(
-                    player_name,
-                    True,
-                    (
-                        20,
-                        20,
-                        20
+                # Nome
+                text = (
+                    self.font.render(
+                        player_name,
+                        True,
+                        (
+                            20,
+                            20,
+                            20
+                        )
                     )
                 )
 
@@ -1216,7 +1371,7 @@ class Game:
         )
 
 
-        # Texto
+        # Texto ou placeholder
         if self.chat_input:
 
             display_text = (
@@ -1262,7 +1417,7 @@ class Game:
 
 
     # ======================================
-    # DESENHO DO JOGO
+    # DESENHAR JOGO
     # ======================================
 
     def draw_game(self):
@@ -1275,18 +1430,16 @@ class Game:
 
 
     # ======================================
-    # DESENHAR
+    # DESENHAR TELA
     # ======================================
 
     def draw(self):
 
-        # Tela inicial
         if self.state == "login":
 
             self.login_screen.draw()
 
 
-        # Mundo
         elif self.state == "game":
 
             self.draw_game()

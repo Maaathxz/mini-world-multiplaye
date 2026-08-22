@@ -5,15 +5,11 @@ import threading
 # ==========================================
 # CLASSE NETWORK CLIENT
 # ==========================================
-# Esta classe cuida de toda a comunicação
-# entre o cliente do jogo e o servidor.
+# Responsável pela comunicação de rede
+# entre o cliente e o servidor.
 #
-# Responsabilidades:
-# - conectar ao servidor
-# - enviar mensagens
-# - receber mensagens
-# - manter uma thread de recebimento
-# - encerrar a conexão
+# Agora também avisa o jogo quando
+# a conexão com o servidor for encerrada.
 # ==========================================
 
 
@@ -22,8 +18,6 @@ class NetworkClient:
     # ======================================
     # CONSTRUTOR
     # ======================================
-    # Define o IP e a porta do servidor.
-    # ======================================
 
     def __init__(
         self,
@@ -31,36 +25,42 @@ class NetworkClient:
         port=5000
     ):
 
-        # Endereço IP do servidor.
+        # IP do servidor
         self.host = host
 
-        # Porta do servidor.
+        # Porta do servidor
         self.port = port
 
-        # Cria um socket IPv4 utilizando TCP.
+
+        # Cria socket TCP IPv4
         self.socket = socket.socket(
             socket.AF_INET,
             socket.SOCK_STREAM
         )
 
-        # Controla se a conexão está ativa.
+
+        # Estado da conexão
         self.connected = False
 
-        # Função que será chamada quando
-        # uma mensagem chegar do servidor.
+
+        # Função chamada quando
+        # uma mensagem chega.
         self.message_handler = None
 
 
+        # Função chamada quando
+        # o servidor desconecta.
+        self.disconnect_handler = None
+
+
     # ======================================
-    # CONECTAR AO SERVIDOR
+    # CONECTAR
     # ======================================
 
     def connect(self):
 
         try:
 
-            # Tenta estabelecer conexão
-            # com o servidor.
             self.socket.connect(
                 (
                     self.host,
@@ -68,12 +68,15 @@ class NetworkClient:
                 )
             )
 
+
             self.connected = True
+
 
             print(
                 f"Conectado ao servidor "
                 f"{self.host}:{self.port}"
             )
+
 
             return True
 
@@ -81,28 +84,14 @@ class NetworkClient:
         except Exception as error:
 
             print(
-                f"Erro ao conectar ao servidor: "
-                f"{error}"
+                f"Erro ao conectar: {error}"
             )
 
             return False
 
 
     # ======================================
-    # DEFINIR TRATADOR DE MENSAGENS
-    # ======================================
-    # Essa função recebe outra função como
-    # parâmetro.
-    #
-    # No game_client.py usaremos:
-    #
-    # self.network.set_message_handler(
-    #     self.process_server_message
-    # )
-    #
-    # Assim, quando uma mensagem chegar,
-    # NetworkClient chama automaticamente
-    # process_server_message().
+    # CONFIGURAR TRATADOR DE MENSAGENS
     # ======================================
 
     def set_message_handler(
@@ -114,6 +103,21 @@ class NetworkClient:
 
 
     # ======================================
+    # CONFIGURAR TRATADOR DE DESCONEXÃO
+    # ======================================
+    # Recebe uma função que será chamada
+    # quando o servidor encerrar a conexão.
+    # ======================================
+
+    def set_disconnect_handler(
+        self,
+        handler
+    ):
+
+        self.disconnect_handler = handler
+
+
+    # ======================================
     # ENVIAR MENSAGEM
     # ======================================
 
@@ -122,8 +126,6 @@ class NetworkClient:
         message
     ):
 
-        # Se não estiver conectado,
-        # não tenta enviar.
         if not self.connected:
 
             return
@@ -131,10 +133,6 @@ class NetworkClient:
 
         try:
 
-            # Adicionamos "\n" no final.
-            #
-            # Isso permite separar mensagens
-            # dentro do fluxo TCP.
             self.socket.sendall(
                 (
                     message + "\n"
@@ -151,19 +149,11 @@ class NetworkClient:
 
 
     # ======================================
-    # LOOP DE RECEBIMENTO
-    # ======================================
-    # Esta função ficará executando
-    # constantemente em uma thread.
-    #
-    # Ela recebe dados do servidor e
-    # separa as mensagens usando "\n".
+    # RECEBER MENSAGENS
     # ======================================
 
     def receive_loop(self):
 
-        # Buffer temporário utilizado
-        # para armazenar dados recebidos.
         buffer = ""
 
 
@@ -171,15 +161,13 @@ class NetworkClient:
 
             try:
 
-                # Aguarda dados do servidor.
                 data = self.socket.recv(
                     1024
                 )
 
 
-                # Se recv() retornar vazio,
-                # significa que o servidor
-                # encerrou a conexão.
+                # Se não vier nenhum dado,
+                # o servidor encerrou a conexão.
                 if not data:
 
                     print(
@@ -190,33 +178,28 @@ class NetworkClient:
                     break
 
 
-                # Converte bytes para texto
-                # e adiciona ao buffer.
-                buffer += data.decode()
+                buffer += (
+                    data.decode()
+                )
 
 
-                # Pode haver várias mensagens
-                # dentro de um único recv().
+                # TCP é um fluxo contínuo.
+                # O "\n" separa mensagens.
                 while "\n" in buffer:
 
-                    message, buffer = (
-                        buffer.split(
-                            "\n",
-                            1
-                        )
+                    (
+                        message,
+                        buffer
+                    ) = buffer.split(
+                        "\n",
+                        1
                     )
 
 
-                    # Ignora mensagens vazias.
-                    if not message:
-
-                        continue
-
-
-                    # Se existir uma função
-                    # configurada para receber
-                    # mensagens...
-                    if self.message_handler:
+                    if (
+                        message
+                        and self.message_handler
+                    ):
 
                         self.message_handler(
                             message
@@ -228,50 +211,67 @@ class NetworkClient:
                 if self.connected:
 
                     print(
-                        f"Erro ao receber dados: "
+                        f"Erro ao receber: "
                         f"{error}"
                     )
+
 
                 break
 
 
-        # Se saiu do loop, considera
-        # a conexão encerrada.
+        # ==================================
+        # CONEXÃO ENCERRADA
+        # ==================================
+
         self.connected = False
 
 
+        # Avisa o jogo.
+        if self.disconnect_handler:
+
+            self.disconnect_handler()
+
+
     # ======================================
-    # INICIAR THREAD DE RECEBIMENTO
+    # THREAD DE RECEBIMENTO
     # ======================================
 
     def start_receiving(self):
 
-        # Cria uma thread responsável
-        # exclusivamente por receber dados
-        # do servidor.
-        receive_thread = threading.Thread(
+        thread = threading.Thread(
             target=self.receive_loop,
             daemon=True
         )
 
-        # Inicia a thread.
-        receive_thread.start()
+
+        thread.start()
 
 
     # ======================================
-    # DESCONECTAR
+    # DESCONECTAR MANUALMENTE
     # ======================================
 
     def disconnect(self):
 
+        # Marca como desconectado antes
+        # de fechar o socket.
         self.connected = False
 
 
         try:
 
-            # Fecha o socket.
-            self.socket.close()
+            self.socket.shutdown(
+                socket.SHUT_RDWR
+            )
 
+        except Exception:
+
+            pass
+
+
+        try:
+
+            self.socket.close()
 
         except Exception:
 

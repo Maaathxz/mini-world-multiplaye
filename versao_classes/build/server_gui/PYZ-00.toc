@@ -1,5 +1,5 @@
 ('C:\\Users\\Matheus\\Documents\\Projetos\\Mini '
- 'world\\versao_classes\\build\\game_client\\PYZ-00.pyz',
+ 'world\\versao_classes\\build\\server_gui\\PYZ-00.pyz',
  [('_compat_pickle',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\_compat_pickle.py',
@@ -172,6 +172,10 @@
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\fractions.py',
    'PYMODULE'),
+  ('game_server',
+   'C:\\Users\\Matheus\\Documents\\Projetos\\Mini '
+   'world\\versao_classes\\game_server.py',
+   'PYMODULE'),
   ('getopt',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\getopt.py',
@@ -284,37 +288,13 @@
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\ipaddress.py',
    'PYMODULE'),
-  ('json',
-   'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\json\\__init__.py',
-   'PYMODULE'),
-  ('json.decoder',
-   'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\json\\decoder.py',
-   'PYMODULE'),
-  ('json.encoder',
-   'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\json\\encoder.py',
-   'PYMODULE'),
-  ('json.scanner',
-   'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\json\\scanner.py',
-   'PYMODULE'),
   ('logging',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\logging\\__init__.py',
    'PYMODULE'),
-  ('login_screen',
-   'C:\\Users\\Matheus\\Documents\\Projetos\\Mini '
-   'world\\versao_classes\\login_screen.py',
-   'PYMODULE'),
   ('lzma',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\lzma.py',
-   'PYMODULE'),
-  ('network',
-   'C:\\Users\\Matheus\\Documents\\Projetos\\Mini '
-   'world\\versao_classes\\network.py',
    'PYMODULE'),
   ('numbers',
    'C:\\Program '
@@ -332,9 +312,9 @@
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\pickle.py',
    'PYMODULE'),
-  ('platform',
-   'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\platform.py',
+  ('player',
+   'C:\\Users\\Matheus\\Documents\\Projetos\\Mini '
+   'world\\versao_classes\\player.py',
    'PYMODULE'),
   ('pprint',
    'C:\\Program '
@@ -343,49 +323,6 @@
   ('py_compile',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\py_compile.py',
-   'PYMODULE'),
-  ('pygame',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\__init__.py',
-   'PYMODULE'),
-  ('pygame.colordict',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\colordict.py',
-   'PYMODULE'),
-  ('pygame.cursors',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\cursors.py',
-   'PYMODULE'),
-  ('pygame.fastevent',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\fastevent.py',
-   'PYMODULE'),
-  ('pygame.ftfont',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\ftfont.py',
-   'PYMODULE'),
-  ('pygame.macosx',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\macosx.py',
-   'PYMODULE'),
-  ('pygame.pkgdata',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\pkgdata.py',
-   'PYMODULE'),
-  ('pygame.sndarray',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\sndarray.py',
-   'PYMODULE'),
-  ('pygame.sprite',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\sprite.py',
-   'PYMODULE'),
-  ('pygame.surfarray',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\surfarray.py',
-   'PYMODULE'),
-  ('pygame.sysfont',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\sysfont.py',
-   'PYMODULE'),
-  ('pygame.threads',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\threads\\__init__.py',
-   'PYMODULE'),
-  ('pygame.version',
-   'C:\\Users\\Matheus\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pygame\\version.py',
-   'PYMODULE'),
-  ('queue',
-   'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\queue.py',
    'PYMODULE'),
   ('quopri',
    'C:\\Program '
@@ -442,6 +379,18 @@
   ('threading',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\threading.py',
+   'PYMODULE'),
+  ('tkinter',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\tkinter\\__init__.py',
+   'PYMODULE'),
+  ('tkinter.constants',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\tkinter\\constants.py',
+   'PYMODULE'),
+  ('tkinter.scrolledtext',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\tkinter\\scrolledtext.py',
    'PYMODULE'),
   ('token',
    'C:\\Program '
