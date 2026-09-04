@@ -259,6 +259,50 @@ class Game:
         )
 
 
+        #IMPORT DOS SPRITES (Estaticos)
+
+        #Export da arvore
+        self.arvore_sprite = pygame.image.load('assets/arvore.png').convert_alpha()
+        # Escalação de imagem se for pequena
+        #Aumenta em 2x o tamanho original sem borrar os pixels
+        self.arvore_sprite = pygame.transform.scale_by(self.arvore_sprite, 2)
+
+        #Export da casa
+        # Largura total = 160 (580 até 740) | Altura total = 160 (340 até 500)
+        self.casa_sprite = pygame.image.load('assets/house.png').convert_alpha()
+        self.casa_sprite = pygame.transform.scale(self.casa_sprite, (160, 160))
+
+        #Export do background
+        # 1. Carrega a imagem do background
+        bg_original = pygame.image.load('assets/tiles.png').convert()
+
+        # 2. Redimensiona para caber perfeitamente na janela (800x600)
+        # Usando .scale para esticar 400x300 para 800x600 mantendo os pixels nítidos
+        self.background = pygame.transform.scale(bg_original, (800, 600))
+
+
+
+        # IMPORT DAS ANIMAÇÕES
+
+        # Carregar os 4 frames da animação
+        self.player_frames = [
+            pygame.image.load('assets/wolf_walk1.png').convert_alpha(),
+            pygame.image.load('assets/wolf_walk2.png').convert_alpha(),
+            pygame.image.load('assets/wolf_walk3.png').convert_alpha(),
+            pygame.image.load('assets/wolf_walk4.png').convert_alpha()
+        ]
+
+        # Se a imagem for de tamanho diferente do self.player_size,
+        # você pode redimensionar todas elas para bater com o tamanho antigo:
+        self.player_frames = [
+            pygame.transform.scale(img, (self.player_size, self.player_size)) 
+            for img in self.player_frames
+        ]
+
+        self.current_frame = 0
+        self.animation_speed = 0.75 # Ajuste a velocidade da animação aqui
+
+
         # ==================================
         # CONTROLE
         # ==================================
@@ -946,6 +990,16 @@ class Game:
                 current_time
             )
 
+            # ======================================
+            # SUA LÓGICA DE ANIMAÇÃO
+            # ======================================
+            self.current_frame += self.animation_speed
+            if self.current_frame >= len(self.player_frames):
+                self.current_frame = 0
+        else:
+            # Se não enviou comando de movimento, volta ao frame parado
+            self.current_frame = 0
+
 
     # ======================================
     # MAPA
@@ -953,17 +1007,12 @@ class Game:
 
     def draw_map(self):
 
-        self.screen.fill(
-            (
-                210,
-                235,
-                255
-            )
-        )
+        # 1. Desenha o background em (0, 0) - substitui o screen.fill antigo!
+        self.screen.blit(self.background, (0, 0))
 
 
         # Área jogável
-        pygame.draw.rect(
+        """pygame.draw.rect(
             self.screen,
             (
                 230,
@@ -980,139 +1029,26 @@ class Game:
                 self.height
                 - self.map_margin * 2
             )
-        )
+        )"""
 
 
         # ==================================
         # ÁRVORE 1
         # ==================================
 
-        pygame.draw.rect(
-            self.screen,
-            (
-                120,
-                80,
-                50
-            ),
-            (
-                110,
-                120,
-                20,
-                45
-            )
-        )
-
-
-        pygame.draw.circle(
-            self.screen,
-            (
-                60,
-                160,
-                80
-            ),
-            (
-                120,
-                110
-            ),
-            35
-        )
+        # Desenha o sprite da árvore no ponto onde ficava o tronco
+        self.screen.blit(self.arvore_sprite, (110, 85))
 
 
         # ==================================
         # ÁRVORE 2
         # ==================================
-
-        pygame.draw.rect(
-            self.screen,
-            (
-                120,
-                80,
-                50
-            ),
-            (
-                640,
-                160,
-                20,
-                45
-            )
-        )
-
-
-        pygame.draw.circle(
-            self.screen,
-            (
-                60,
-                160,
-                80
-            ),
-            (
-                650,
-                150
-            ),
-            35
-        )
-
+        self.screen.blit(self.arvore_sprite, (615, 125))
 
         # ==================================
         # CASA
         # ==================================
-
-        pygame.draw.rect(
-            self.screen,
-            (
-                180,
-                120,
-                80
-            ),
-            (
-                600,
-                400,
-                120,
-                100
-            )
-        )
-
-
-        # Telhado
-        pygame.draw.polygon(
-            self.screen,
-            (
-                150,
-                70,
-                60
-            ),
-            [
-                (
-                    580,
-                    400
-                ),
-                (
-                    660,
-                    340
-                ),
-                (
-                    740,
-                    400
-                )
-            ]
-        )
-
-
-        # Porta
-        pygame.draw.rect(
-            self.screen,
-            (
-                100,
-                60,
-                40
-            ),
-            (
-                645,
-                450,
-                30,
-                50
-            )
-        )
+        self.screen.blit(self.casa_sprite, (580, 340))
 
 
     # ======================================
@@ -1181,17 +1117,8 @@ class Game:
 
 
                 # Personagem temporário
-                pygame.draw.rect(
-                    self.screen,
-                    color,
-                    (
-                        x,
-                        y,
-                        self.player_size,
-                        self.player_size
-                    ),
-                    border_radius=8
-                )
+                sprite_atual = self.player_frames[int(self.current_frame)]
+                self.screen.blit(sprite_atual, (x, y))
 
 
                 # Nome
