@@ -270,7 +270,7 @@ class Game:
         #Export da casa
         # Largura total = 160 (580 até 740) | Altura total = 160 (340 até 500)
         self.casa_sprite = pygame.image.load('assets/house.png').convert_alpha()
-        self.casa_sprite = pygame.transform.scale(self.casa_sprite, (160, 160))
+        self.casa_sprite = pygame.transform.scale(self.casa_sprite, (180, 180))
 
         #Export do background
         # 1. Carrega a imagem do background
@@ -284,28 +284,46 @@ class Game:
 
         # IMPORT DAS ANIMAÇÕES
 
-        # Carregar os 4 frames da animação
-        self.player_frames = [
-            pygame.image.load('assets/wolf_walk1.png').convert_alpha(),
-            pygame.image.load('assets/wolf_walk2.png').convert_alpha(),
-            pygame.image.load('assets/wolf_walk3.png').convert_alpha(),
-            pygame.image.load('assets/wolf_walk4.png').convert_alpha()
-        ]
+        # Dicionário contendo os 4 frames de cada personagem
+        self.character_frames = {
+            "character_1": [  # Lobo
+                pygame.image.load('assets/wolf_walk1.png').convert_alpha(),
+                pygame.image.load('assets/wolf_walk2.png').convert_alpha(),
+                pygame.image.load('assets/wolf_walk3.png').convert_alpha(),
+                pygame.image.load('assets/wolf_walk4.png').convert_alpha()
+            ],
+            "character_2": [  # Gato
+                pygame.image.load('assets/gato_walk1.png').convert_alpha(),
+                pygame.image.load('assets/gato_walk2.png').convert_alpha(),
+                pygame.image.load('assets/gato_walk3.png').convert_alpha(),
+                pygame.image.load('assets/gato_walk4.png').convert_alpha()
+            ],
+            "character_3": [  # Guaxinim
+                pygame.image.load('assets/guaxinim_walk1.png').convert_alpha(),
+                pygame.image.load('assets/guaxinim_walk2.png').convert_alpha(),
+                pygame.image.load('assets/guaxinim_walk3.png').convert_alpha(),
+                pygame.image.load('assets/guaxinim_walk4.png').convert_alpha()
+            ]
+        }
 
-        # Se a imagem for de tamanho diferente do self.player_size,
-        # você pode redimensionar todas elas para bater com o tamanho antigo:
-        self.player_frames = [
-            pygame.transform.scale(img, (self.player_size, self.player_size)) 
-            for img in self.player_frames
-        ]
+        self.player_size = self.player_size * 1.5
+
+        # Redimensiona automaticamente todos os frames de todos os personagens
+        for char_key, frames_list in self.character_frames.items():
+            self.character_frames[char_key] = [
+                pygame.transform.scale(img, (self.player_size, self.player_size))
+                for img in frames_list
+            ]
 
         self.current_frame = 0
-        self.animation_speed = 0.75 # Ajuste a velocidade da animação aqui
+        self.animation_speed = 0.75
 
 
         # ==================================
         # CONTROLE
         # ==================================
+
+        self.facing_right = True  # True = Direita, False = Esquerda
 
         self.last_move = 0
 
@@ -972,11 +990,13 @@ class Game:
         elif keys[pygame.K_a]:
 
             command = "MOVE_A"
+            self.facing_right = False  # Virado para a esquerda
 
 
         elif keys[pygame.K_d]:
 
             command = "MOVE_D"
+            self.facing_right = True   # Virado para a direita
 
 
         if command:
@@ -985,16 +1005,21 @@ class Game:
                 command
             )
 
-
             self.last_move = (
                 current_time
             )
 
-            # ======================================
-            # SUA LÓGICA DE ANIMAÇÃO
-            # ======================================
             self.current_frame += self.animation_speed
-            if self.current_frame >= len(self.player_frames):
+            
+            # Pega a lista de frames certa do personagem atual (lobo, gato ou guaxinim)
+            # Se a sua variável de login se chamar diferente (ex: self.selected_character), troque aqui:
+            char_atual = getattr(self, 'character', 'character_1')
+            frames_do_personagem = self.character_frames.get(
+                char_atual, 
+                self.character_frames["character_1"]
+            )
+            
+            if self.current_frame >= len(frames_do_personagem):
                 self.current_frame = 0
         else:
             # Se não enviou comando de movimento, volta ao frame parado
@@ -1056,103 +1081,43 @@ class Game:
     # ======================================
 
     def draw_players(self):
-
-        character_colors = {
-
-            "character_1": (
-                60,
-                120,
-                230
-            ),
-
-            "character_2": (
-                220,
-                80,
-                90
-            ),
-
-            "character_3": (
-                70,
-                180,
-                110
-            )
-        }
-
-
         with self.players_lock:
+            for player_name, player_data in self.players.items():
+                x = player_data["x"]
+                y = player_data["y"]
+                character = player_data["character"]
 
-            for (
-                player_name,
-                player_data
-            ) in self.players.items():
-
-
-                x = (
-                    player_data["x"]
+                # 1. Pega os frames do personagem atual com segurança
+                frames = self.character_frames.get(
+                    character, 
+                    self.character_frames["character_1"]
                 )
 
+                # 2. GARANTE QUE A VARIÁVEL EXISTE ANTES DE QUALQUER COISA
+                sprite_atual = frames[int(self.current_frame) % len(frames)]
 
-                y = (
-                    player_data["y"]
-                )
+                # 3. Espelha o sprite se o jogador estiver olhando para a esquerda
+                if not getattr(self, 'facing_right', True):
+                    sprite_atual = pygame.transform.flip(sprite_atual, True, False)
 
-
-                character = (
-                    player_data[
-                        "character"
-                    ]
-                )
-
-
-                color = (
-                    character_colors.get(
-                        character,
-                        (
-                            100,
-                            100,
-                            100
-                        )
-                    )
-                )
-
-
-                # Personagem temporário
-                sprite_atual = self.player_frames[int(self.current_frame)]
+                # 4. Desenha o sprite na tela
                 self.screen.blit(sprite_atual, (x, y))
 
+                # 5. Desenha o nome do jogador em cima
+                text = self.font.render(
+                    player_name,
+                    True,
+                    (20, 20, 20)
+                )
 
-                # Nome
-                text = (
-                    self.font.render(
-                        player_name,
-                        True,
-                        (
-                            20,
-                            20,
-                            20
-                        )
+                text_rect = text.get_rect(
+                    center=(
+                        x + self.player_size // 2,
+                        y - 12
                     )
                 )
 
-
-                text_rect = (
-                    text.get_rect(
-                        center=(
-                            x
-                            + self.player_size
-                            // 2,
-
-                            y - 12
-                        )
-                    )
-                )
-
-
-                self.screen.blit(
-                    text,
-                    text_rect
-                )
-
+                self.screen.blit(text, text_rect)
 
     # ======================================
     # CHAT
