@@ -1081,29 +1081,78 @@ class Game:
     # ======================================
 
     def draw_players(self):
+        # Inicializa dicionários de controle se não existirem
+        if not hasattr(self, 'player_facing'):
+            self.player_facing = {}
+        if not hasattr(self, 'player_anim_indices'):
+            self.player_anim_indices = {}
+        if not hasattr(self, 'player_last_x'):
+            self.player_last_x = {}
+        if not hasattr(self, 'player_anim_timers'):
+            self.player_anim_timers = {}
+
         with self.players_lock:
             for player_name, player_data in self.players.items():
                 x = player_data["x"]
                 y = player_data["y"]
                 character = player_data["character"]
 
-                # 1. Pega os frames do personagem atual com segurança
+                # Pega os frames do personagem correto
                 frames = self.character_frames.get(
                     character, 
                     self.character_frames["character_1"]
                 )
 
-                # 2. GARANTE QUE A VARIÁVEL EXISTE ANTES DE QUALQUER COISA
-                sprite_atual = frames[int(self.current_frame) % len(frames)]
+                # Descobre se este player na lista é você mesmo
+                local_name = getattr(self, 'name', None) or getattr(self, 'player_name', '')
+                is_local = (player_name == local_name)
 
-                # 3. Espelha o sprite se o jogador estiver olhando para a esquerda
-                if not getattr(self, 'facing_right', True):
+                if is_local:
+                    # Você usa o seu próprio teclado e controle global
+                    facing_right = self.facing_right
+                    anim_index = self.current_frame
+                else:
+                    # Outros jogadores: detectam movimento pelo X e mantêm a animação ativa por alguns quadros
+                    last_x = self.player_last_x.get(player_name, x)
+                    
+                    if x > last_x:
+                        facing_right = True
+                        self.player_facing[player_name] = facing_right
+                        self.player_anim_timers[player_name] = 12  # Mantém animando por 12 frames após mover
+                    elif x < last_x:
+                        facing_right = False
+                        self.player_facing[player_name] = facing_right
+                        self.player_anim_timers[player_name] = 12
+                    else:
+                        facing_right = self.player_facing.get(player_name, True)
+
+                    self.player_last_x[player_name] = x
+
+                    # Roda a animação do outro player baseada no timer de movimento
+                    timer = self.player_anim_timers.get(player_name, 0)
+                    anim_index = self.player_anim_indices.get(player_name, 0.0)
+
+                    if timer > 0:
+                        anim_index += self.animation_speed
+                        if anim_index >= len(frames):
+                            anim_index = 0.0
+                        self.player_anim_timers[player_name] = timer - 1
+                    else:
+                        anim_index = 0.0  # Parado
+
+                    self.player_anim_indices[player_name] = anim_index
+
+                # Seleciona o frame atual
+                sprite_atual = frames[int(anim_index) % len(frames)]
+
+                # Espelha individualmente se estiver olhando para a esquerda
+                if not facing_right:
                     sprite_atual = pygame.transform.flip(sprite_atual, True, False)
 
-                # 4. Desenha o sprite na tela
+                # Desenha o sprite na tela
                 self.screen.blit(sprite_atual, (x, y))
 
-                # 5. Desenha o nome do jogador em cima
+                # Desenha o nome do jogador em cima
                 text = self.font.render(
                     player_name,
                     True,
@@ -1118,7 +1167,6 @@ class Game:
                 )
 
                 self.screen.blit(text, text_rect)
-
     # ======================================
     # CHAT
     # ======================================
